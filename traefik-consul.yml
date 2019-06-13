@@ -1,0 +1,105 @@
+version: '3.3'
+services:
+  consul-leader:
+    image: 172.25.5.231:5000/consul
+    command: agent -server -client=0.0.0.0 -bootstrap -ui
+    volumes:
+      - consul-data-leader:/consul/data
+    environment:
+      - CONSUL_BIND_INTERFACE=eth0
+      - 'CONSUL_LOCAL_CONFIG={"leave_on_terminate": true}'
+    networks:
+      - default
+      - traefik-net
+    deploy:
+      labels:
+        - traefik.frontend.rule=Host:consul.sysadm.com
+        - traefik.enable=true
+        - traefik.port=8500
+        #- traefik.tags=${TRAEFIK_PUBLIC_TAG:-traefik-net}
+        - traefik.docker.network=traefik-net
+        # Traefik service that listens to HTTP
+        - traefik.redirectorservice.frontend.entryPoints=http
+        - traefik.redirectorservice.frontend.redirect.entryPoint=https
+        # Traefik service that listens to HTTPS
+        - traefik.webservice.frontend.entryPoints=https
+        - traefik.frontend.auth.basic.users=admin:"$apr1$P/KYv7tj$Wr1WU6uEwK3TuoFVvcRFe."
+  consul-replica:
+    image: 172.25.5.231:5000/consul
+    command: agent -server -client=0.0.0.0 -retry-join="consul-leader"
+    volumes:
+      - consul-data-replica:/consul/data
+    environment:
+      - CONSUL_BIND_INTERFACE=eth0
+      - 'CONSUL_LOCAL_CONFIG={"leave_on_terminate": true}'
+    networks:
+      - default
+      - traefik-net
+    deploy:
+      replicas: 5
+      placement:
+        preferences:
+          - spread: node.id
+  traefik:
+    image: 172.25.5.231:5000/traefik
+    ports:
+      - "80:80"
+      - "8080:8080"
+      - "443:443"
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == manager
+        preferences:
+          - spread: node.id
+      labels:
+        - traefik.frontend.rule=Host:traefik.sysadm.com
+        - traefik.enable=true
+        - traefik.port=8080
+        - traefik.tags=traefik-public
+        - traefik.docker.network=traefik-net
+        # Traefik service that listens to HTTP
+        - traefik.redirectorservice.frontend.entryPoints=http
+        - traefik.redirectorservice.frontend.redirect.entryPoint=https
+        # Traefik service that listens to HTTPS
+        - traefik.webservice.frontend.entryPoints=https
+        - traefik.frontend.auth.basic.users=admin:"$apr1$P/KYv7tj$Wr1WU6uEwK3TuoFVvcRFe."
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /dev/null:/traefik.toml
+    command: >
+      --web
+      --docker
+      --docker.swarmmode
+      --docker.watch
+      --docker.domain=t1.sysadm.com
+      --docker.exposedbydefault=false
+      --logLevel=DEBUG
+      --constraints=tag==traefik-net
+      --entrypoints='Name:http Address::80'
+      --entrypoints='Name:https Address::443 TLS'
+      --consul
+      --consul.endpoint="consul-leader:8500"
+      --acme
+      --acme.email=vprabhakaran@tafe.com
+      --acme.storage="traefik/acme/account"
+      --acme.entryPoint=https
+      --acme.httpChallenge.entryPoint=http
+      --acme.onhostrule=true
+      --acme.acmelogging=true
+      --logLevel=INFO
+      --accessLog
+      --api
+    networks:
+      - default
+      - traefik-net
+    depends_on:
+      - consul-leader
+        
+volumes:
+  consul-data-leader:
+  consul-data-replica:
+networks:
+  traefik-net:
+    driver: overlay

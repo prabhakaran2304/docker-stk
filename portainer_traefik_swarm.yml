@@ -1,0 +1,22 @@
+version: "3.3"
+services:
+  portainer:
+    image: 172.25.5.231:5000/portainer
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/infrausr/stk/portainerdata:/data
+    networks:
+      - traefik-net
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+      labels:
+        - traefik.enable=true
+        - traefik.port=9000
+        - traefik.docker.network=traefik-net
+        - traefik.frontend.rule=Host:portainer.t1.sysadm.com
+
+networks:
+  traefik-net:
+    driver: overlay
+
