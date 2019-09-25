@@ -1,0 +1,23 @@
+version: '2'
+
+services:
+  racktable:
+    container_name: racktables
+    image: thinfactory/racktables
+    restart: unless-stopped
+    volumes:
+      - /stk/racktables/secret.php:/var/www/html/inc/secret.php
+#    depends_on:
+#      - db
+    labels:
+      - "traefik.backend=racktable"
+      - "traefik.docker.network=web"
+      - "traefik.frontend.rule=Host:dcasset.d1.sysadm.com"
+      - "traefik.enable=true"
+      - "traefik.port=80"
+    networks:
+      - "web"
+
+networks:
+  web:
+    external: true
