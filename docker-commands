@@ -1,0 +1,17 @@
+sysctl --system
+
+systemctl stop firewalld
+systemctl disable firewalld
+
+swapoff -a
+sed -i.bak -r 's/(.+ swap .+)/#\1/' /etc/fstab
+
+setenforce 0
+sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
+
+vi /etc/sysctl.d/dock.conf
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+
+
+systemctl enable docker ;  systemctl start docker
